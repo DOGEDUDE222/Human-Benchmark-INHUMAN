@@ -1,0 +1,90 @@
+(() => {
+  const TARGET_MS = 0.1; // Set desired target score (e.g., 0.1 or 1.0)
+
+  // Fast, zero-overhead timing hook
+  const nativePerfNow = performance.now.bind(performance);
+  let lastPerfNow = nativePerfNow();
+  let overrideTime = null;
+
+  performance.now = function() {
+    if (overrideTime !== null) return overrideTime;
+    lastPerfNow = nativePerfNow();
+    return lastPerfNow;
+  };
+
+  let round = 0;
+  let isProcessing = false;
+
+  function triggerClick(target) {
+    if (!target) return;
+    const opts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
+    target.dispatchEvent(new PointerEvent('pointerdown', opts));
+    target.dispatchEvent(new MouseEvent('mousedown', opts));
+    target.dispatchEvent(new MouseEvent('mouseup', opts));
+    target.dispatchEvent(new MouseEvent('click', opts));
+  }
+
+  function handleState() {
+    if (round >= 5 || isProcessing) return;
+
+    const goScreen = document.querySelector('.view-go');
+    const resultScreen = document.querySelector('.view-result');
+    const splashScreen = document.querySelector('.view-splash');
+
+    // 1. Green Screen: Trigger instant click with exact target timing
+    if (goScreen) {
+      isProcessing = true;
+      round++;
+
+      // Override timing for the duration of the click dispatch
+      overrideTime = lastPerfNow + TARGET_MS;
+      triggerClick(goScreen);
+      overrideTime = null;
+
+      console.log(`Round ${round}/5 finished (${TARGET_MS}ms)`);
+
+      if (round >= 5) {
+        observer.disconnect();
+        console.log(`%c[COMPLETE] 5/5 finished. Target average: ${TARGET_MS}ms!`, "color: #00ff00; font-weight: bold;");
+        return;
+      }
+
+      // Buffer before advancing to prevent accidental clicks on the red screen
+      setTimeout(() => {
+        isProcessing = false;
+        advanceRound();
+      }, 150);
+      return;
+    }
+
+    // Start test from main splash screen
+    if (splashScreen && round === 0) {
+      isProcessing = true;
+      triggerClick(splashScreen);
+      setTimeout(() => { isProcessing = false; }, 200);
+    }
+  }
+
+  function advanceRound() {
+    if (round >= 5 || isProcessing) return;
+    const resultScreen = document.querySelector('.view-result');
+    if (resultScreen) {
+      isProcessing = true;
+      triggerClick(resultScreen);
+      setTimeout(() => { isProcessing = false; }, 200);
+    }
+  }
+
+  const observer = new MutationObserver(() => {
+    handleState();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+  });
+
+  handleState();
+})();
