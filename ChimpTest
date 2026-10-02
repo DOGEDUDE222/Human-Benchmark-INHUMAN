@@ -1,0 +1,86 @@
+(() => {
+  console.log("%c[Chimp Test Bot: Ultra-Fast Active]", "color: #00ff00; font-weight: bold;");
+
+  let isRunning = false;
+
+  function fireClick(element) {
+    if (!element) return;
+    const opts = { bubbles: true, cancelable: true, view: window, buttons: 1 };
+    element.dispatchEvent(new PointerEvent('pointerdown', opts));
+    element.dispatchEvent(new MouseEvent('mousedown', opts));
+    element.dispatchEvent(new MouseEvent('mouseup', opts));
+    element.dispatchEvent(new MouseEvent('click', opts));
+  }
+
+  function solveChimpTest() {
+    if (isRunning) return;
+
+    // 1. Look for start or continue buttons ("Continue", "Start Test")
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const startOrContinueBtn = buttons.find(btn => {
+      const txt = btn.innerText.trim().toLowerCase();
+      return txt.includes('continue') || txt.includes('start test');
+    });
+
+    if (startOrContinueBtn) {
+      isRunning = true;
+      fireClick(startOrContinueBtn);
+      setTimeout(() => {
+        isRunning = false;
+        solveChimpTest();
+      }, 200);
+      return;
+    }
+
+    // 2. Query all active tile nodes containing number attributes
+    const tileNodes = document.querySelectorAll('[data-cellnumber], div[style*="grid"] > div');
+    const numberedTiles = [];
+
+    tileNodes.forEach(tile => {
+      // Extract number either from data attribute or innerText
+      const cellNumAttr = tile.getAttribute('data-cellnumber');
+      const textVal = tile.innerText ? tile.innerText.trim() : '';
+      const parsedNum = cellNumAttr ? parseInt(cellNumAttr, 10) : parseInt(textVal, 10);
+
+      if (!isNaN(parsedNum)) {
+        numberedTiles.push({ num: parsedNum, element: tile });
+      }
+    });
+
+    // 3. If tiles found, sort strictly in ascending order (1, 2, 3...)
+    if (numberedTiles.length > 0) {
+      isRunning = true;
+
+      numberedTiles.sort((a, b) => a.num - b.num);
+
+      // Execute clicks synchronously with a micro-delay per tile to ensure state updates smoothly
+      numberedTiles.forEach((tileObj, index) => {
+        setTimeout(() => {
+          fireClick(tileObj.element);
+
+          // Once the final tile of the round is clicked, reset the run lock to catch the next round
+          if (index === numberedTiles.length - 1) {
+            setTimeout(() => {
+              isRunning = false;
+              solveChimpTest();
+            }, 150);
+          }
+        }, index * 10); // 10ms micro-stagger ensures 0 misses and 0 strikes
+      });
+    }
+  }
+
+  // Observe DOM additions continuously
+  const observer = new MutationObserver(() => {
+    solveChimpTest();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true
+  });
+
+  // Initial trigger
+  solveChimpTest();
+})();
